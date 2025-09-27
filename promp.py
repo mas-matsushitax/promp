@@ -8,6 +8,7 @@ import pathspec
 
 # --- 定数定義 ---
 TEMPLATE_DIR = ".promp-template"
+INPUT_DIR = ".promp-in"
 OUTPUT_DIR = ".promp-out"
 SPEC_FILE = "PROMP-SPEC.md"
 GITIGNORE_FILE = ".gitignore"
@@ -88,6 +89,7 @@ SPEC_TEMPLATE_CONTENT = """# ツール名: （ここにツール名を書く）
 GITIGNORE_CONTENT = """
 # for promp
 .promp-out
+.promp-in
 """
 
 # --- CLIの定義 ---
@@ -213,14 +215,25 @@ def out(file_patterns, template, exclude):
     
     final_prompt = template_content.replace("{existing_files}", files_as_string)
 
-    # 5. 結果を出力ファイルに書き込む
-    Path(OUTPUT_DIR).mkdir(exist_ok=True)
+    # 5. 結果を出力ファイルと入力ファイル（対象一覧）に書き込む
+    # タイムスタンプを生成
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    # .promp-out フォルダと出力ファイルの準備
+    Path(OUTPUT_DIR).mkdir(exist_ok=True)
     output_filename = f"out-{timestamp}.txt"
     output_path = Path(OUTPUT_DIR) / output_filename
     output_path.write_text(final_prompt, encoding="utf-8")
-
     click.echo(click.style(f"\nプロンプトを '{output_path}' に出力しました。", fg="green"))
+
+    # .promp-in フォルダと入力ファイル（対象ファイル一覧）の準備
+    Path(INPUT_DIR).mkdir(exist_ok=True)
+    input_filename = f"in-{timestamp}.txt"
+    input_path = Path(INPUT_DIR) / input_filename
+    # 対象となったファイル一覧を改行で結合して保存
+    input_file_content = "\n".join(unique_files)
+    input_path.write_text(input_file_content, encoding="utf-8")
+    click.echo(click.style(f"対象ファイル一覧を '{input_path}' に保存しました。", fg="green"))
 
 
 @promp.command()
