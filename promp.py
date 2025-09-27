@@ -1,9 +1,9 @@
 import os
 import glob
-import subprocess
 import datetime
 from pathlib import Path
 import click
+import patch as patch_lib
 
 # --- 定数定義 ---
 TEMPLATE_DIR = ".promp-template"
@@ -202,24 +202,37 @@ def patch(patch_file):
     """Unified形式の差分ファイルをカレントフォルダに適用する"""
     click.echo(f"差分ファイル '{patch_file}' を適用します...")
     try:
-        # patchコマンドを実行。-p1でディレクトリ階層を一つ無視する
-        result = subprocess.run(
-            ["patch", "-p1"], 
-            stdin=open(patch_file, 'r'), 
-            capture_output=True, 
-            text=True,
-            check=True
-        )
-        click.echo(click.style("パッチの適用に成功しました。", fg="green"))
-        if result.stdout:
-            click.echo("---出力---")
-            click.echo(result.stdout)
-    except FileNotFoundError:
-        click.echo(click.style("エラー: 'patch' コマンドが見つかりません。システムにインストールされているか確認してください。", fg="red"))
-    except subprocess.CalledProcessError as e:
-        click.echo(click.style("エラー: パッチの適用に失敗しました。", fg="red"))
-        click.echo("---エラー内容---")
-        click.echo(e.stderr)
+        # パッチファイルを読み込む
+        patch_set = patch_lib.fromfile(patch_file)
+        if not patch_set:
+            click.echo(
+                click.style(
+                    f"エラー: '{patch_file}' は有効なUnified形式の差分ファイルではない可能性があります。",
+                    fg="red",
+                )
+            )
+            return
+
+        # パッチを適用 (-p1相当のstrip=1を指定)
+        if patch_set.apply(strip=1):
+            click.echo(click.style("✅ パッチの適用に成功しました。", fg="green"))
+            # どのファイルに適用されたかを表示
+            for p in patch_set.items:
+                # p.targetはb''で始まるバイト列の場合があるのでデコードする
+                target_file = (
+                    p.target.decode("utf-8") if isinstance(p.target, bytes) else p.target
+                )
+                click.echo(f"  -> {target_file}")
+        else:
+            click.echo(
+                click.style(
+                    "エラー: パッチの適用に失敗しました。対象ファイルが存在しないか、すでに変更されている可能性があります。",
+                    fg="red",
+                )
+            )
+    except Exception as e:
+        click.echo(click.style(f"エラー: パッチ適用中に予期せぬエラーが発生しました。", fg="red"))
+        click.echo(f"---エラー内容---\n{e}")
 
 if __name__ == '__main__':
     promp()
