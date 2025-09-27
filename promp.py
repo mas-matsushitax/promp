@@ -3,7 +3,8 @@ import glob
 import datetime
 from pathlib import Path
 import click
-import patch as patch_lib
+import re
+import pathspec
 
 # --- 定数定義 ---
 TEMPLATE_DIR = ".promp-template"
@@ -12,9 +13,13 @@ SPEC_FILE = "PROMP-SPEC.md"
 GITIGNORE_FILE = ".gitignore"
 
 DEFAULT_TEMPLATE_CONTENT = """あなたは、エクスパートプログラマーです。
-以下の「既存ファイル」を参考に、下記の「ユーザーの指示」に従って、コードを作成して、説明と差分ファイル（Unified形式）を作成してください。
-差分ファイルは、一発でコピーできるようにしてください。
-※説明と差分ファイル中のコメントは日本語で作成してください。
+以下の「ユーザーの指示」と「既存ファイル」を参考に、変更が必要なファイルの全体を、新しい「ブロック置換形式」で出力してください。
+※コード中のコメントは日本語で作成してください。
+
+==== ブロック置換形式のルール ====
+* 変更が必要なファイルのみを出力してください。
+* 各ファイルの先頭には、必ず `---- (ファイルパス) ----` というヘッダー行を付けてください。
+* ヘッダー行の後には、ファイルの新しい内容全体を記述してください。
 
 ==== ユーザーの指示 ====
 
@@ -138,9 +143,10 @@ def init():
 @promp.command()
 @click.argument("file_patterns", nargs=-1, required=True)
 @click.option("-t", "--template", default="default", help="プロンプト作成時のテンプレート名を指定します。")
-def out(file_patterns, template):
+@click.option("-e", "--exclude", multiple=True, help="除外するファイルパターンを指定します。ワイルドカード使用可。")
+def out(file_patterns, template, exclude):
     """指定されたファイルを埋め込んだプロンプトを出力する"""
-    # テンプレートファイルのパスを解決
+    # 0. テンプレートファイルのパスを解決
     template_file = Path(TEMPLATE_DIR) / f"{template}.txt"
     if not template_file.exists():
         click.echo(click.style(f"エラー: テンプレート '{template_file}' が見つかりません。", fg="red"))
@@ -156,13 +162,34 @@ def out(file_patterns, template):
     # 重複を除外してソート
     unique_files = sorted(list(set(all_files)))
 
+    # 2. .gitignoreと--excludeオプションでファイルを除外
+    # .gitignoreの内容でフィルタリング
+    gitignore_path = Path(GITIGNORE_FILE)
+    if gitignore_path.exists():
+        with open(gitignore_path, "r", encoding="utf-8") as f:
+            # GitWildMatchPatternの代わりに 'gitwildmatch' を文字列として渡す
+            gitignore_spec = pathspec.PathSpec.from_lines('gitwildmatch', f)
+            ignored_files = set(gitignore_spec.match_files(unique_files))
+            if ignored_files:
+                click.echo(f"ℹ️ .gitignore に基づき {len(ignored_files)} 個のファイルを除外します。")
+                unique_files = [f for f in unique_files if f not in ignored_files]
+
+    # --exclude オプションで指定されたパターンでフィルタリング
+    if exclude:
+        # GitWildMatchPatternの代わりに 'gitwildmatch' を文字列として渡す
+        exclude_spec = pathspec.PathSpec.from_lines('gitwildmatch', exclude)
+        excluded_files_by_opt = set(exclude_spec.match_files(unique_files))
+        if excluded_files_by_opt:
+            click.echo(f"ℹ️ --exclude オプションに基づき {len(excluded_files_by_opt)} 個のファイルを除外します。")
+            unique_files = [f for f in unique_files if f not in excluded_files_by_opt]
+
     if not unique_files:
         click.echo(click.style("エラー: 指定されたパターンに一致するファイルが見つかりませんでした。", fg="red"))
         return
     
-    click.echo(f"ℹ️ {len(unique_files)}個のファイルが見つかりました。内容を読み込みます...")
+    click.echo(f"ℹ️ {len(unique_files)}個のファイルを処理対象とします。内容を読み込みます...")
 
-    # 2. 各ファイルの内容をヘッダー付きでリストに格納
+    # 3. 各ファイルの内容をヘッダー付きでリストに格納
     existing_files_content_list = []
     for file_path_str in unique_files:
         file_path = Path(file_path_str)
@@ -178,7 +205,7 @@ def out(file_patterns, template):
             except Exception as e:
                 click.echo(click.style(f"  - 読み込み失敗: {relative_path} ({e})", fg="yellow"))
 
-    # 3. テンプレートにファイル内容を埋め込む
+    # 4. テンプレートにファイル内容を埋め込む
     template_content = template_file.read_text(encoding="utf-8")
     
     # ファイル間の区切りとして改行を2つ入れる
@@ -186,7 +213,7 @@ def out(file_patterns, template):
     
     final_prompt = template_content.replace("{existing_files}", files_as_string)
 
-    # 4. 結果を出力ファイルに書き込む
+    # 5. 結果を出力ファイルに書き込む
     Path(OUTPUT_DIR).mkdir(exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     output_filename = f"out-{timestamp}.txt"
@@ -197,42 +224,47 @@ def out(file_patterns, template):
 
 
 @promp.command()
-@click.argument("patch_file", type=click.Path(exists=True))
-def patch(patch_file):
-    """Unified形式の差分ファイルをカレントフォルダに適用する"""
-    click.echo(f"差分ファイル '{patch_file}' を適用します...")
-    try:
-        # パッチファイルを読み込む
-        patch_set = patch_lib.fromfile(patch_file)
-        if not patch_set:
-            click.echo(
-                click.style(
-                    f"エラー: '{patch_file}' は有効なUnified形式の差分ファイルではない可能性があります。",
-                    fg="red",
-                )
-            )
-            return
+@click.argument("llm_output_file", type=click.Path(exists=True, dir_okay=False))
+def apply(llm_output_file):
+    """LLMが出力した「ブロック置換形式」のファイルを適用する"""
+    click.echo(f"📖 ファイル '{llm_output_file}' を読み込んで適用準備をします...")
+    
+    output_content = Path(llm_output_file).read_text(encoding="utf-8")
 
-        # パッチを適用 (-p1相当のstrip=1を指定)
-        if patch_set.apply(strip=1):
-            click.echo(click.style("✅ パッチの適用に成功しました。", fg="green"))
-            # どのファイルに適用されたかを表示
-            for p in patch_set.items:
-                # p.targetはb''で始まるバイト列の場合があるのでデコードする
-                target_file = (
-                    p.target.decode("utf-8") if isinstance(p.target, bytes) else p.target
-                )
-                click.echo(f"  -> {target_file}")
-        else:
-            click.echo(
-                click.style(
-                    "エラー: パッチの適用に失敗しました。対象ファイルが存在しないか、すでに変更されている可能性があります。",
-                    fg="red",
-                )
-            )
-    except Exception as e:
-        click.echo(click.style(f"エラー: パッチ適用中に予期せぬエラーが発生しました。", fg="red"))
-        click.echo(f"---エラー内容---\n{e}")
+    # ファイルのヘッダーで分割 (---- path/to/file ----)
+    # re.splitはセパレータも結果に含めるので、ファイルパスと内容が交互のリストになる
+    parts = re.split(r'---- (.+?) ----\n', output_content)
+
+    if len(parts) < 3:
+        click.echo(click.style("エラー: 有効なファイルブロックが見つかりません。", fg="red"))
+        click.echo("各ファイルは `---- ファイルパス ----` というヘッダーで始めてください。")
+        return
+
+    # 最初の部分はヘッダー前なので無視し、ファイルパスと内容をペアにする
+    files_to_apply = {}
+    for i in range(1, len(parts), 2):
+        path_str = parts[i].strip()
+        # 次のヘッダーまでの内容を取得し、末尾の改行を削除することが多いのでrstrip()
+        content = parts[i+1].rstrip()
+        files_to_apply[path_str] = content
+    
+    click.echo("以下のファイルが変更（上書き）されます：")
+    for file_path in files_to_apply.keys():
+        click.echo(f"  - {file_path}")
+    
+    if not click.confirm("\n処理を続行しますか？"):
+        click.echo("処理を中断しました。")
+        return
+
+    click.echo("\nファイルの上書きを開始します...")
+    for path_str, content in files_to_apply.items():
+        try:
+            file_path = Path(path_str)
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(content, encoding="utf-8")
+            click.echo(click.style(f"✅ {path_str} を上書きしました。", fg="green"))
+        except Exception as e:
+            click.echo(click.style(f"❌ {path_str} の書き込み中にエラーが発生しました: {e}", fg="red"))
 
 if __name__ == '__main__':
     promp()
