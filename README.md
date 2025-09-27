@@ -5,6 +5,34 @@
 
 ---
 
+## セットアップ
+
+このプログラムは **uv** ツールを使ってグローバルにインストールすることを推奨します。
+
+### 1. uvのインストール
+
+まだ**uv**をインストールしていない場合は、以下のコマンドでインストールしてください。
+
+Windowsの場合PowerShellで以下コマンドを実行
+```sh
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+````
+
+Linuxの場合Bash等で以下コマンドを実行
+```sh
+curl -LsSf [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | sh
+```
+
+### 2. prompのインストール
+
+以下のコマンドを実行することで、どのディレクトリからでも`promp`コマンドが使えるようになります。
+
+```sh
+uv tool install promp
+```
+
+---
+
 ## コマンド仕様
 
 ### 基本コマンド: 
