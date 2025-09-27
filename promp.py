@@ -10,7 +10,7 @@ import pathspec
 TEMPLATE_DIR = ".promp-template"
 INPUT_DIR = ".promp-in"
 OUTPUT_DIR = ".promp-out"
-SPEC_FILE = "PROMP-SPEC.md"
+SPEC_FILE = "SPEC.md"
 GITIGNORE_FILE = ".gitignore"
 
 DEFAULT_TEMPLATE_CONTENT = """あなたは、エクスパートプログラマーです。
@@ -100,7 +100,8 @@ def promp():
     pass
 
 @promp.command()
-def init():
+@click.option("-s", "--spec", is_flag=True, help="SPEC.mdファイルを出力します。")
+def init(spec):
     """カレントフォルダにprompで使用するファイルやフォルダを追加する"""
     click.echo("prompの初期化を開始します。")
 
@@ -111,7 +112,12 @@ def init():
                 "警告: カレントフォルダには既にファイルまたはフォルダが存在します。", fg="yellow"
             )
         )
-        click.echo(f"以下のファイル/フォルダを作成・追記します: {TEMPLATE_DIR}/, {GITIGNORE_FILE}, {SPEC_FILE}")
+        # 作成対象のリストを動的に作成
+        created_items = [f"{TEMPLATE_DIR}/", GITIGNORE_FILE]
+        if spec:
+            created_items.append(SPEC_FILE)
+        click.echo(f"以下のファイル/フォルダを作成・追記します: {', '.join(created_items)}")
+
         if not click.confirm("処理を続行しますか？"):
             click.echo("処理を中断しました。")
             return
@@ -137,9 +143,11 @@ def init():
         gitignore_path.write_text(GITIGNORE_CONTENT.strip(), encoding="utf-8")
         click.echo(f"✅ '{GITIGNORE_FILE}' を作成しました。")
 
-    # 3. PROMP-SPEC.md の作成
-    Path(SPEC_FILE).write_text(SPEC_TEMPLATE_CONTENT, encoding="utf-8")
-    click.echo(f"✅ '{SPEC_FILE}' を作成しました。")
+    # 3. SPEC.md の作成 (オプションが指定された場合のみ)
+    if spec:
+        Path(SPEC_FILE).write_text(SPEC_TEMPLATE_CONTENT, encoding="utf-8")
+        click.echo(f"✅ '{SPEC_FILE}' を作成しました。")
+
     click.echo(click.style("初期化が完了しました。", fg="green"))
 
 
