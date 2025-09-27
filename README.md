@@ -28,7 +28,15 @@ curl -LsSf [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | 
 以下のコマンドを実行することで、どのディレクトリからでも`promp`コマンドが使えるようになります。
 
 ```sh
-uv tool install promp
+uv tool install git+https://github.com/mas-matsushitax/promp.git
+```
+
+### 3. （参考）prompのアンインストール
+
+prompが必要なくなったら、以下のコマンドでアンインストールできます。
+
+```sh
+uv tool uninstall promp
 ```
 
 ---
@@ -141,3 +149,34 @@ LLMから出力された「ブロック置換形式」のファイルをカレ�
 * **言語:** python
 
 ---
+
+## 参考情報
+
+### 開発時の一時インストール方法
+
+※※注意：以下はpromp本体開発時の備忘録です。prompをツールとして使うだけなら関係ありません※※
+
+promp本体を開発時にはvenv環境に入り、-eオプションをつけてインストールする必要がある
+
+```sh
+# 仮想環境を作成する（初回実行時）
+uv venv
+
+# 仮想環境の有効化（環境によって3通りある）
+# Windows コマンドプロンプトの場合
+.venv\Scripts\activate
+
+# Windows powershellの場合
+.venv\Scripts\Activate.ps1
+
+# Linuxの場合
+source .venv/bin/activate
+
+# 仮想環境にインストール（編集可能オプション付き）
+uv tool install -e .
+
+# この後はprompツールを使えるようになる
+
+# 仮想環境からぬける（仮想環境から抜けるとprompは使えなくなる）
+deactivate
+```
