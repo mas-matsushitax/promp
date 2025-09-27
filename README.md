@@ -67,12 +67,13 @@
     ```
 * **仕様:**
     
-    .promp-template/default.txtを読み取って、.promp-out/out-XXXXXXXX.txtに出力
+    .promp-template/default.txtを読み取って、.promp-out/out-XXXXXXXX.txtに出力する。
+    同時に、LLMからの出力を貼り付けるための空ファイルとして .promp-in/in-XXXXXXXX.txt を作成する。
     
     XXXXXXXXは現在日時をyyyymmdd-hhmmss形式にする（例：out-20250927-190721.txt）
     
     出力時に、引数で指定されたファイルを読み取って{existing_files}に埋め込む
-      
+     
       埋め込み時はファイル毎に以下のようにヘッダーをつけること
         ---- ファイルパス（カレントからの相対パス）----
         ファイルの内容

@@ -215,7 +215,7 @@ def out(file_patterns, template, exclude):
     
     final_prompt = template_content.replace("{existing_files}", files_as_string)
 
-    # 5. 結果を出力ファイルと入力ファイル（対象一覧）に書き込む
+    # 5. 結果を出力ファイルと入力ファイル（空）に書き込む
     # タイムスタンプを生成
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -226,14 +226,13 @@ def out(file_patterns, template, exclude):
     output_path.write_text(final_prompt, encoding="utf-8")
     click.echo(click.style(f"\nプロンプトを '{output_path}' に出力しました。", fg="green"))
 
-    # .promp-in フォルダと入力ファイル（対象ファイル一覧）の準備
+    # .promp-in フォルダと入力用の空ファイルの準備
     Path(INPUT_DIR).mkdir(exist_ok=True)
     input_filename = f"in-{timestamp}.txt"
     input_path = Path(INPUT_DIR) / input_filename
-    # 対象となったファイル一覧を改行で結合して保存
-    input_file_content = "\n".join(unique_files)
-    input_path.write_text(input_file_content, encoding="utf-8")
-    click.echo(click.style(f"対象ファイル一覧を '{input_path}' に保存しました。", fg="green"))
+    # 空ファイルを作成
+    input_path.write_text("", encoding="utf-8")
+    click.echo(click.style(f"LLMの出力を貼り付けるための空ファイル '{input_path}' を作成しました。", fg="green"))
 
 
 @promp.command()
