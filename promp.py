@@ -236,12 +236,40 @@ def out(file_patterns, template, exclude):
 
 
 @promp.command()
-@click.argument("llm_output_file", type=click.Path(exists=True, dir_okay=False))
+@click.argument("llm_output_file", type=click.Path(dir_okay=False), required=False)
 def apply(llm_output_file):
     """LLMが出力した「ブロック置換形式」のファイルを適用する"""
-    click.echo(f"📖 ファイル '{llm_output_file}' を読み込んで適用準備をします...")
+    target_file_path = None
+
+    # 引数が指定されなかった場合、.promp-in 内の最新ファイルを自動選択する
+    if llm_output_file is None:
+        click.echo(f"ℹ️ ファイルが指定されていないため、'{INPUT_DIR}/' 内の最新ファイルを検索します...")
+        input_dir_path = Path(INPUT_DIR)
+        
+        if not input_dir_path.is_dir():
+            click.echo(click.style(f"エラー: '{INPUT_DIR}' ディレクトリが見つかりません。", fg="red"))
+            return
+
+        # .promp-in 内の in-*.txt ファイルをファイル名の降順でソート
+        in_files = sorted(list(input_dir_path.glob("in-*.txt")), reverse=True)
+        
+        if not in_files:
+            click.echo(click.style(f"エラー: '{INPUT_DIR}' 内に適用対象のファイルが見つかりません。", fg="red"))
+            return
+            
+        # 最新のファイルを選択
+        target_file_path = in_files[0]
+        click.echo(click.style(f"✅ 最新ファイル '{target_file_path}' を適用対象とします。", fg="green"))
+    else:
+        target_file_path = Path(llm_output_file)
+
+    # ファイルの存在をチェック
+    if not target_file_path.exists():
+        click.echo(click.style(f"エラー: ファイル '{target_file_path}' が見つかりません。", fg="red"))
+        return
     
-    output_content = Path(llm_output_file).read_text(encoding="utf-8")
+    click.echo(f"📖 ファイル '{target_file_path}' を読み込んで適用準備をします...")
+    output_content = target_file_path.read_text(encoding="utf-8")
 
     # ファイルのヘッダーで分割 (---- path/to/file ----)
     # re.splitはセパレータも結果に含めるので、ファイルパスと内容が交互のリストになる
