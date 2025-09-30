@@ -22,9 +22,9 @@ uv tool install git+https://github.com/mas-matsushitax/promp.git
 ### ローカルインストール
 
 ```bash
-curl -O https://github.com/mas-matsushitax/promp/archive/refs/heads/main.zip
-unzip main.zip
-uv tool install ./main
+curl -L https://github.com/mas-matsushitax/promp/archive/refs/heads/main.zip --output promp-main.zip
+unzip promp-main.zip
+uv tool install ./promp-main
 ```
 
 ### pipを使用する場合
@@ -36,9 +36,9 @@ pip install git+https://github.com/mas-matsushitax/promp.git
 または
 
 ```bash
-curl -O https://github.com/mas-matsushitax/promp/archive/refs/heads/main.zip
-unzip main.zip
-pip install ./main
+curl -L https://github.com/mas-matsushitax/promp/archive/refs/heads/main.zip --output promp-main.zip
+unzip promp-main.zip
+pip install ./promp-main
 ```
 
 ### （参考）prompのアンインストール
