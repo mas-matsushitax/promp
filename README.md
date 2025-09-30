@@ -5,38 +5,54 @@
 
 ---
 
-## セットアップ
+## インストール
 
-このプログラムは **uv** ツールを使ってグローバルにインストールすることを推奨します。
+### 前提条件
 
-### 1. uvのインストール
+- Python 3.10以上
+- `uv` pythonパッケージマネージャー（pipを使うなら必要ありません）
+- `git` githubからモジュールを取得（curlを使うなら必要ありません）
 
-まだ**uv**をインストールしていない場合は、以下のコマンドでインストールしてください。
+### リモートインストール
 
-Windowsの場合PowerShellで以下コマンドを実行
-```sh
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-````
-
-Linuxの場合Bash等で以下コマンドを実行
-```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-### 2. prompのインストール
-
-以下のコマンドを実行することで、どのディレクトリからでも`promp`コマンドが使えるようになります。
-
-```sh
+```bash
 uv tool install git+https://github.com/mas-matsushitax/promp.git
 ```
 
-### 3. （参考）prompのアンインストール
+### ローカルインストール
+
+```bash
+curl -O https://github.com/mas-matsushitax/promp/archive/refs/heads/main.zip
+unzip main.zip
+uv tool install ./main
+```
+
+### pipを使用する場合
+
+```bash
+pip install git+https://github.com/mas-matsushitax/promp.git
+```
+
+または
+
+```bash
+curl -O https://github.com/mas-matsushitax/promp/archive/refs/heads/main.zip
+unzip main.zip
+pip install ./main
+```
+
+### （参考）prompのアンインストール
 
 prompが必要なくなったら、以下のコマンドでアンインストールできます。
 
 ```sh
 uv tool uninstall promp
+```
+
+または
+
+```sh
+pip uninstall promp
 ```
 
 ---
@@ -151,6 +167,20 @@ LLMから出力された「ブロック置換形式」のファイルをカレ�
 ---
 
 ## 参考情報
+
+### uvのインストール
+
+**uv**は、以下のコマンドでインストールできます。
+
+Windowsの場合PowerShellで以下コマンドを実行
+```sh
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+````
+
+Linuxの場合Bash等で以下コマンドを実行
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 ### 開発時の一時インストール方法
 
