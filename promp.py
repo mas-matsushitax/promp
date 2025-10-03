@@ -27,6 +27,7 @@ DEFAULT_TEMPLATE_CONTENT = """あなたは、エクスパートプログラマ�
   * operation: (文字列) 操作の種類。create (新規作成), update (上書き更新), delete (削除) のいずれかを指定。
   * content: (文字列) createまたはupdateの場合に、ファイルの新しい内容全体を記述。JSON文字列として正しくエスケープしてください（改行は`\\n`など）。
 * 重要: JSONコードブロック以外の説明文は不要です。
+* 重要: ノーブレークスペース（U+00a0）は絶対に使用せず、通常のスペース（U+0020）のみを使用すること。
 
 ---- 出力例 ----
 
@@ -315,7 +316,10 @@ def apply(apply_file):
         else:
             # ブロックがない場合は、ファイル全体をJSONとして解釈しようと試みる
             json_str = content
-        
+
+        # ノーブレークスペースを通常のスペースに置換
+        json_str = json_str.replace('\u00a0', ' ')
+
         data = json.loads(json_str)
         changes = data.get("changes", [])
     except json.JSONDecodeError:
