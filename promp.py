@@ -5,6 +5,7 @@ from pathlib import Path
 import click
 import re
 import pathspec
+import json
 
 # --- 定数定義 ---
 TEMPLATE_DIR = ".promp-template"
@@ -14,17 +15,41 @@ SPEC_FILE = "SPEC.md"
 GITIGNORE_FILE = ".gitignore"
 
 DEFAULT_TEMPLATE_CONTENT = """あなたは、エクスパートプログラマーです。
-以下の「ユーザーの指示」と「既存ファイル」を参考に、変更が必要なファイルの全体を、「ブロック置換形式」で出力してください。
+以下の「ユーザーの指示」と「既存ファイル」を参考に、変更内容を「JSON差分形式」で出力してください。
 ※コード中のコメントは日本語で作成してください。
 
-==== ブロック置換形式のルール ====
-* 変更が必要なファイルのみを出力してください。
-* 各ファイルの先頭には、必ず `---- (ファイルパス) ----` というヘッダー行を付けてください。
-* ヘッダー行の後には、ファイルの新しい内容全体を記述してください。
-* ブロック置換形式の前後を```で囲んでください（ファイル毎には分けない）。
-* **重要: ファイルの内容は、言語に応じたコードブロック（例: ```python）で囲まないでください。**
-* **重要: ファイルの内容は、ヘッダー行の直後にそのまま記述してください。**
-* **重要: コード中やコメント中において、ノーブレークスペース（U+00a0）は使用せず、通常のスペース（U+0020）のみを使用してください。**
+==== JSON差分形式のルール ====
+
+* 変更内容は、単一のJSONオブジェクトとして出力し、必ず```json コードブロックで囲んでください。
+* JSONオブジェクトには、changesというキーを持たせ、その値は変更点を記述したオブジェクトの配列とします。
+* 各変更オブジェクトには、以下のキーを含めてください。
+  * file_path: (文字列) 対象となるファイルのパス。
+  * operation: (文字列) 操作の種類。create (新規作成), update (上書き更新), delete (削除) のいずれかを指定。
+  * content: (文字列) createまたはupdateの場合に、ファイルの新しい内容全体を記述。JSON文字列として正しくエスケープしてください（改行は`\\n`など）。
+* 重要: JSONコードブロック以外の説明文は不要です。
+
+---- 出力例 ----
+
+```json
+{
+  "changes": [
+    {
+      "file_path": "src/new_feature.py",
+      "operation": "create",
+      "content": "def new_function():\\n    print(\\"This is a new feature.\\")\\n"
+    },
+    {
+      "file_path": "main.py",
+      "operation": "update",
+      "content": "import src.new_feature\\n\\nprint(\\"Hello, World!\\")\\nsrc.new_feature.new_function()\\n"
+    },
+    {
+      "file_path": "docs/old_spec.txt",
+      "operation": "delete"
+    }
+  ]
+}
+```
 
 ==== ユーザーの指示 ====
 
@@ -317,6 +342,123 @@ def apply(llm_output_file):
             click.echo(click.style(f"✅ {path_str} を上書きしました。", fg="green"))
         except Exception as e:
             click.echo(click.style(f"❌ {path_str} の書き込み中にエラーが発生しました: {e}", fg="red"))
+
+
+def _find_latest_input_file():
+    """'.promp-in' ディレクトリ内の最新の入力ファイルを検索するヘルパー関数"""
+    input_dir_path = Path(INPUT_DIR)
+    if not input_dir_path.is_dir():
+        click.echo(click.style(f"エラー: '{INPUT_DIR}' ディレクトリが見つかりません。", fg="red"))
+        return None
+
+    in_files = sorted(list(input_dir_path.glob("in-*.txt")), reverse=True)
+    if not in_files:
+        click.echo(click.style(f"エラー: '{INPUT_DIR}' 内に適用対象のファイルが見つかりません。", fg="red"))
+        return None
+        
+    return in_files[0]
+
+@promp.command()
+@click.argument("patch_file", type=click.Path(dir_okay=False), required=False)
+def patch(patch_file):
+    """LLMが出力したJSON差分ファイルを適用する"""
+    target_file_path = None
+
+    if patch_file is None:
+        click.echo(f"ℹ️ ファイルが指定されていないため、'{INPUT_DIR}/' 内の最新ファイルを検索します...")
+        target_file_path = _find_latest_input_file()
+        if not target_file_path:
+            return
+        click.echo(click.style(f"✅ 最新ファイル '{target_file_path}' を適用対象とします。", fg="green"))
+    else:
+        target_file_path = Path(patch_file)
+
+    if not target_file_path.exists():
+        click.echo(click.style(f"エラー: ファイル '{target_file_path}' が見つかりません。", fg="red"))
+        return
+    
+    click.echo(f"📖 ファイル '{target_file_path}' を読み込んで差分情報を解析します...")
+    
+    try:
+        content = target_file_path.read_text(encoding="utf-8")
+        # LLM出力の```json ... ```ブロックからJSON部分を抽出
+        match = re.search(r"```json\s*\n(.*?)\n```", content, re.DOTALL)
+        if match:
+            json_str = match.group(1)
+        else:
+            # ブロックがない場合は、ファイル全体をJSONとして解釈しようと試みる
+            json_str = content
+        
+        data = json.loads(json_str)
+        changes = data.get("changes", [])
+    except json.JSONDecodeError:
+        click.echo(click.style("エラー: ファイルのJSON形式が正しくありません。", fg="red"))
+        return
+    except Exception as e:
+        click.echo(click.style(f"エラー: ファイルの読み込み中に予期せぬ問題が発生しました: {e}", fg="red"))
+        return
+
+    if not changes:
+        click.echo(click.style("警告: 適用する変更がJSON内に見つかりませんでした。", fg="yellow"))
+        return
+
+    click.echo("\n以下の変更が適用されます：")
+    for change in changes:
+        op = change.get('operation', '不明').upper()
+        path = change.get('file_path', 'パス不明')
+        if op == "CREATE":
+            click.echo(click.style(f"  [CREATE] {path}", fg="green"))
+        elif op == "UPDATE":
+            click.echo(click.style(f"  [UPDATE] {path}", fg="yellow"))
+        elif op == "DELETE":
+            click.echo(click.style(f"  [DELETE] {path}", fg="red"))
+
+    if not click.confirm("\n処理を続行しますか？"):
+        click.echo("処理を中断しました。")
+        return
+
+    click.echo("\nパッチの適用を開始します...")
+    for change in changes:
+        op = change.get('operation')
+        path_str = change.get('file_path')
+        
+        if not op or not path_str:
+            click.echo(click.style("  - スキップ: 'operation'または'file_path'が不正です。", fg="yellow"))
+            continue
+
+        file_path = Path(path_str)
+        
+        try:
+            if op == "create":
+                if file_path.exists():
+                    click.echo(click.style(f"  - 警告: 作成予定のファイル {path_str} は既に存在するためスキップします。", fg="yellow"))
+                    continue
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                file_path.write_text(change.get("content", ""), encoding="utf-8")
+                click.echo(click.style(f"  ✅ [CREATE] {path_str} を作成しました。", fg="green"))
+            
+            elif op == "update":
+                if not file_path.exists():
+                    click.echo(click.style(f"  - 警告: 更新予定のファイル {path_str} が見つからないため新規作成します。", fg="yellow"))
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                file_path.write_text(change.get("content", ""), encoding="utf-8")
+                click.echo(click.style(f"  ✅ [UPDATE] {path_str} を更新しました。", fg="green"))
+
+            elif op == "delete":
+                if file_path.exists():
+                    file_path.unlink()
+                    click.echo(click.style(f"  ✅ [DELETE] {path_str} を削除しました。", fg="green"))
+                else:
+                    click.echo(click.style(f"  - 警告: 削除予定のファイル {path_str} は存在しません。", fg="yellow"))
+            
+            else:
+                click.echo(click.style(f"  - 警告: 未知の操作 '{op}' のためスキップします。", fg="yellow"))
+
+        except Exception as e:
+            click.echo(click.style(f"  ❌ [{op.upper()}] {path_str} の処理中にエラーが発生しました: {e}", fg="red"))
+
+    click.echo(click.style("\nパッチの適用が完了しました。", fg="green"))
+
 
 if __name__ == '__main__':
     promp()
