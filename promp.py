@@ -36,12 +36,12 @@ DEFAULT_TEMPLATE_CONTENT = """あなたは、エクスパートプログラマ�
     {
       "file_path": "src/new_feature.py",
       "operation": "create",
-      "content": "def new_function():\\n    print(\\"This is a new feature.\\")\\n"
+      "content": "def new_function():\\n    pass)\\n"
     },
     {
       "file_path": "main.py",
       "operation": "update",
-      "content": "import src.new_feature\\n\\nprint(\\"Hello, World!\\")\\nsrc.new_feature.new_function()\\n"
+      "content": "import src.new_feature\\n\\nsrc.new_feature.new_function()\\n"
     },
     {
       "file_path": "docs/old_spec.txt",
@@ -271,79 +271,6 @@ def out(file_patterns, template, exclude):
     input_path.write_text("", encoding="utf-8")
     click.echo(click.style(f"LLMの出力を貼り付けるための空ファイル '{input_path}' を作成しました。", fg="green"))
 
-
-@promp.command()
-@click.argument("llm_output_file", type=click.Path(dir_okay=False), required=False)
-def apply(llm_output_file):
-    """LLMが出力した「ブロック置換形式」のファイルを適用する"""
-    target_file_path = None
-
-    # 引数が指定されなかった場合、.promp-in 内の最新ファイルを自動選択する
-    if llm_output_file is None:
-        click.echo(f"ℹ️ ファイルが指定されていないため、'{INPUT_DIR}/' 内の最新ファイルを検索します...")
-        input_dir_path = Path(INPUT_DIR)
-        
-        if not input_dir_path.is_dir():
-            click.echo(click.style(f"エラー: '{INPUT_DIR}' ディレクトリが見つかりません。", fg="red"))
-            return
-
-        # .promp-in 内の in-*.txt ファイルをファイル名の降順でソート
-        in_files = sorted(list(input_dir_path.glob("in-*.txt")), reverse=True)
-        
-        if not in_files:
-            click.echo(click.style(f"エラー: '{INPUT_DIR}' 内に適用対象のファイルが見つかりません。", fg="red"))
-            return
-            
-        # 最新のファイルを選択
-        target_file_path = in_files[0]
-        click.echo(click.style(f"✅ 最新ファイル '{target_file_path}' を適用対象とします。", fg="green"))
-    else:
-        target_file_path = Path(llm_output_file)
-
-    # ファイルの存在をチェック
-    if not target_file_path.exists():
-        click.echo(click.style(f"エラー: ファイル '{target_file_path}' が見つかりません。", fg="red"))
-        return
-    
-    click.echo(f"📖 ファイル '{target_file_path}' を読み込んで適用準備をします...")
-    output_content = target_file_path.read_text(encoding="utf-8")
-
-    # ファイルのヘッダーで分割 (---- path/to/file ----)
-    # re.splitはセパレータも結果に含めるので、ファイルパスと内容が交互のリストになる
-    parts = re.split(r'---- (.+?) ----\n', output_content)
-
-    if len(parts) < 3:
-        click.echo(click.style("エラー: 有効なファイルブロックが見つかりません。", fg="red"))
-        click.echo("各ファイルは `---- ファイルパス ----` というヘッダーで始めてください。")
-        return
-
-    # 最初の部分はヘッダー前なので無視し、ファイルパスと内容をペアにする
-    files_to_apply = {}
-    for i in range(1, len(parts), 2):
-        path_str = parts[i].strip()
-        # 次のヘッダーまでの内容を取得し、末尾の改行を削除することが多いのでrstrip()
-        content = parts[i+1].rstrip()
-        files_to_apply[path_str] = content
-    
-    click.echo("以下のファイルが変更（上書き）されます：")
-    for file_path in files_to_apply.keys():
-        click.echo(f"  - {file_path}")
-    
-    if not click.confirm("\n処理を続行しますか？"):
-        click.echo("処理を中断しました。")
-        return
-
-    click.echo("\nファイルの上書きを開始します...")
-    for path_str, content in files_to_apply.items():
-        try:
-            file_path = Path(path_str)
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(content, encoding="utf-8")
-            click.echo(click.style(f"✅ {path_str} を上書きしました。", fg="green"))
-        except Exception as e:
-            click.echo(click.style(f"❌ {path_str} の書き込み中にエラーが発生しました: {e}", fg="red"))
-
-
 def _find_latest_input_file():
     """'.promp-in' ディレクトリ内の最新の入力ファイルを検索するヘルパー関数"""
     input_dir_path = Path(INPUT_DIR)
@@ -359,19 +286,19 @@ def _find_latest_input_file():
     return in_files[0]
 
 @promp.command()
-@click.argument("patch_file", type=click.Path(dir_okay=False), required=False)
-def patch(patch_file):
+@click.argument("apply_file", type=click.Path(dir_okay=False), required=False)
+def apply(apply_file):
     """LLMが出力したJSON差分ファイルを適用する"""
     target_file_path = None
 
-    if patch_file is None:
+    if apply_file is None:
         click.echo(f"ℹ️ ファイルが指定されていないため、'{INPUT_DIR}/' 内の最新ファイルを検索します...")
         target_file_path = _find_latest_input_file()
         if not target_file_path:
             return
         click.echo(click.style(f"✅ 最新ファイル '{target_file_path}' を適用対象とします。", fg="green"))
     else:
-        target_file_path = Path(patch_file)
+        target_file_path = Path(apply_file)
 
     if not target_file_path.exists():
         click.echo(click.style(f"エラー: ファイル '{target_file_path}' が見つかりません。", fg="red"))
