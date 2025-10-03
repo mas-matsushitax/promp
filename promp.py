@@ -6,6 +6,7 @@ import click
 import re
 import pathspec
 import json
+import shutil
 
 # --- 定数定義 ---
 TEMPLATE_DIR = ".promp-template"
@@ -381,6 +382,38 @@ def apply(apply_file):
             click.echo(click.style(f"  ❌ [{op.upper()}] {path_str} の処理中にエラーが発生しました: {e}", fg="red"))
 
     click.echo(click.style("\nパッチの適用が完了しました。", fg="green"))
+
+
+@promp.command()
+def clear():
+    """'.promp-in' と '.promp-out' ディレクトリを削除する"""
+    click.echo("一時ディレクトリのクリーンアップを開始します。")
+
+    # 削除対象のディレクトリ
+    dirs_to_delete = [INPUT_DIR, OUTPUT_DIR]
+    
+    # 実際に存在する削除対象のディレクトリをリストアップ
+    existing_dirs = [d for d in dirs_to_delete if Path(d).is_dir()]
+    
+    if not existing_dirs:
+        click.echo(f"ℹ️ 削除対象のディレクトリ ({', '.join(dirs_to_delete)}) は見つかりませんでした。")
+        return
+
+    click.echo(f"以下のディレクトリとその内容を全て削除します: {click.style(', '.join(existing_dirs), fg='red')}")
+    if not click.confirm("よろしいですか？"):
+        click.echo("処理を中断しました。")
+        return
+    
+    click.echo("")
+        
+    for dir_name in existing_dirs:
+        try:
+            shutil.rmtree(dir_name)
+            click.echo(click.style(f"✅ ディレクトリ '{dir_name}' を削除しました。", fg="green"))
+        except Exception as e:
+            click.echo(click.style(f"❌ エラー: '{dir_name}' の削除中にエラーが発生しました: {e}", fg="red"))
+
+    click.echo(click.style("\nクリーンアップが完了しました。", fg="green"))
 
 
 if __name__ == '__main__':
