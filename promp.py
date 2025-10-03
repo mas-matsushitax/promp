@@ -174,11 +174,15 @@ def init():
 
 
 @promp.command()
-@click.argument("file_patterns", nargs=-1, required=True)
+@click.argument("file_patterns", nargs=-1, required=False)
 @click.option("-t", "--template", default="default", help="プロンプト作成時のテンプレート名を指定します。")
 @click.option("-e", "--exclude", multiple=True, help="除外するファイルパターンを指定します。ワイルドカード使用可。")
 def out(file_patterns, template, exclude):
     """指定されたファイルを埋め込んだプロンプトを出力する"""
+    # 引数「既存ファイルパス」が指定されていない場合は、警告をだす
+    if not file_patterns:
+        click.echo(click.style("注意: 既存ファイルパスが指定されていないため、プロンプトに既存ファイルの内容は反映されません。", fg="yellow"))
+
     # 0. テンプレートファイルのパスを解決
     template_file = Path(TEMPLATE_DIR) / f"{template}.txt"
     if not template_file.exists():
@@ -216,7 +220,8 @@ def out(file_patterns, template, exclude):
             click.echo(f"ℹ️ --exclude オプションに基づき {len(excluded_files_by_opt)} 個のファイルを除外します。")
             unique_files = [f for f in unique_files if f not in excluded_files_by_opt]
 
-    if not unique_files:
+    # パターンが指定されたにもかかわらず一致するファイルがなかった場合のみエラーとする
+    if not unique_files and file_patterns:
         click.echo(click.style("エラー: 指定されたパターンに一致するファイルが見つかりませんでした。", fg="red"))
         return
     
