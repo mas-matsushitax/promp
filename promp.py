@@ -36,7 +36,7 @@ DEFAULT_TEMPLATE_CONTENT = """あなたは、エクスパートプログラマ�
     {
       "file_path": "src/new_feature.py",
       "operation": "create",
-      "content": "def new_function():\\n    pass)\\n"
+      "content": "def new_function():\\n    pass\\n"
     },
     {
       "file_path": "main.py",

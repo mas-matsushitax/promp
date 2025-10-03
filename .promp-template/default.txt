@@ -20,12 +20,12 @@
     {
       "file_path": "src/new_feature.py",
       "operation": "create",
-      "content": "def new_function():\n    print(\"This is a new feature.\")\n"
+      "content": "def new_function():\n    pass\n"
     },
     {
       "file_path": "main.py",
       "operation": "update",
-      "content": "import src.new_feature\n\nprint(\"Hello, World!\")\nsrc.new_feature.new_function()\n"
+      "content": "import src.new_feature\n\nsrc.new_feature.new_function()\n"
     },
     {
       "file_path": "docs/old_spec.txt",
