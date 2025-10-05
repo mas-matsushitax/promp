@@ -263,10 +263,16 @@ def out(file_patterns, template, exclude):
     # 4. テンプレートにファイル内容を埋め込む
     template_content = template_file.read_text(encoding="utf-8")
     
-    # ファイル間の区切りとして改行を2つ入れる
-    files_as_string = "\n\n".join(existing_files_content_list)
+    # 埋め込むファイルがない場合は「なし」、ある場合は内容を結合した文字列を作成
+    if not unique_files:
+        files_as_string = "なし"
+    else:
+        # ファイル間の区切りとして改行を2つ入れる
+        files_as_string = "\n\n".join(existing_files_content_list)
     
-    final_prompt = template_content.replace("{existing_files}", files_as_string)
+    # テンプレートのプレースホルダを置換
+    final_prompt = template_content.replace("{json_diff_rule}", JSON_DIFF_RULE)
+    final_prompt = final_prompt.replace("{existing_files}", files_as_string)
 
     # 5. 結果を出力ファイルと入力ファイル（空）に書き込む
     # タイムスタンプを生成
